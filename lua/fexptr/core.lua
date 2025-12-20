@@ -127,5 +127,38 @@ end
 --         M.open_split()
 --     end
 -- end
--- 
+
+function M.open()
+    if state.win and api.nvim_win_is_valid(state.win) then
+        return
+    end
+
+    state.buf = api.nvim_create_buf(false, true)
+
+    local opts = {
+        relative = "editor",
+        width = config.options.width,
+        height = vim.o.lines - 2,
+        row = 1,
+        col = config.options.side == "left" and 0 or (vim.o.columns - config.options.width),
+        style = "minimal",
+    }
+
+    state.win = api.nvim_open_win(state.buf, false, opts)
+    api.nvim_buf_set_option(state.buf, "bufhidden", "wipe")
+    api.nvim_buf_set_option(state.buf, "modifiable", true)
+
+    M.render()
+end
+
+function M.toggle()
+    if state.win and api.nvim_win_is_valid(state.win) then
+        api.nvim_win_close(state.win, true)
+        state.win = nil
+        state.buf = nil
+    else
+        M.open()
+    end
+end
+
 return M
