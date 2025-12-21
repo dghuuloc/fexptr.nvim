@@ -118,7 +118,7 @@ function M.delete_()
     if not node then return end
     if fn.confirm("Delete "..node.name.."?", "&Yes\n&No") ~= 1 then return end
     if node.is_dir then fn.delete(node.path, "rf") else uv.fs_unlink(node.path) end
-    core.render()
+    core().render()
 end
 
 function M.copy_()

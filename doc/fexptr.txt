@@ -1,0 +1,78 @@
+*fexptr.txt*   Native file explorer for Neovim
+
+==============================================================================
+FEXPTR                                                     *fexptr*
+
+A fast, native file explorer written in pure Lua.
+
+------------------------------------------------------------------------------
+COMMANDS                                                   *fexptr-commands*
+
+:FexptrToggle                                              *:FexptrToggle*
+    Toggle the file explorer window.
+
+------------------------------------------------------------------------------
+KEYMAPS                                                   *fexptr-keymaps*
+
+Inside the explorer buffer:
+
+<CR>, o
+    Open file or expand directory.
+
+a
+    Create file or directory.
+
+r
+    Rename file or directory.
+
+d
+    Delete file or directory.
+
+y
+    Copy file or directory.
+
+x
+    Cut (move) file or directory.
+
+p
+    Paste copied or cut item.
+
+q
+    Close the explorer.
+
+Keymaps are configurable via setup().
+
+------------------------------------------------------------------------------
+CONFIGURATION                                            *fexptr-config*
+
+Example:
+
+>
+lua << EOF
+require("fexptr").setup({
+  width = 30,
+  show_hidden = false,
+  keymaps = {
+    open = { "<CR>", "o" },
+    quit = "q",
+  },
+})
+EOF
+
+------------------------------------------------------------------------------
+ARCHITECTURE                                             *fexptr-architecture*
+
+lua/fexptr/
+  init.lua      Public API
+  config.lua    Configuration
+  state.lua     Runtime state
+  fs.lua        Filesystem helpers
+  tree.lua      Tree builder
+  core.lua      UI and rendering
+  actions.lua   User actions
+
+------------------------------------------------------------------------------
+AUTHOR                                                    *fexptr-author*
+
+Maintained by dghuuloc
+License: MIT

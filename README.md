@@ -109,13 +109,55 @@ require("fexptr").setup({
 }
 ```
 
-### Default Keymaps
-- `<CR>` / `o` – open
-- `a` – create
-- `r` – rename
-- `d` – delete
-- `y` – copy
-- `x` – cut
-- `p` – paste
-- `q` – quit
+### ⌨️ Default Key Mappings
 
+| Key          | Action                       |
+| ------------ | ---------------------------- |
+| `<CR>` / `o` | Open file / expand directory |
+| `a`          | Create file or directory     |
+| `r`          | Rename file or directory     |
+| `d`          | Delete file or directory     |
+| `y`          | Copy                         |
+| `x`          | Cut (move)                   |
+| `p`          | Paste                        |
+| `q`          | Close explorer               |
+
+#### ➕ Create Files & Directories
+Press `a`
+
+You are prompted for a **pth relative to root**
+
+```text
+src/main/java/App.java
+src/main/resources/
+```
+* Ending with `/` creates a directory
+* Otherwise, creates a file
+
+#### 📋 Copy / Cut / Paste
+**Workflow**
+1. Select file or directory
+2. Press:
+    * `y` → Copy
+    * `x` → Cut (move)
+3. Move cursor to target directory
+4. Press `p`
+
+You will be prompted for a **target path relative to root**
+
+---
+### Documentation & Help
+`fexptr.nvim` provides **built-in Neovim help documentation**, so you can explore features **without leaving Neovim**.
+
+#### 🔍 Accessing Help
+After installing the plugin, generate help tags **once**:
+
+```vim
+:helptags ALL
+```
+
+Then access the documentation anytime with:
+
+```vim
+:help fexptr
+```
