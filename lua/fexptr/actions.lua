@@ -62,7 +62,7 @@ function M.create_()
     rel_base = rel_base:gsub("\\", "/")
 
     -- Pre-fill input with the current node's full path + "/"
-    local input = fn.input("Create (relative to root): ", rel_base .. "/")
+    local input = fn.input("Create: ", rel_base .. "/")
     if input == "" then return end
 
     -- Convert input back to absolute path
@@ -87,7 +87,7 @@ function M.rename_()
 
     local rel_path = vim.fn.fnamemodify(node.path, ":.")
     rel_path = rel_path:gsub("\\", "/")
-    local input = vim.fn.input("Rename (relative to root): ", rel_path)
+    local input = vim.fn.input("Rename: ", rel_path)
     if input == "" then return end
 
      -- Normalize paths
@@ -110,6 +110,7 @@ function M.rename_()
         vim.notify("Rename failed: " .. tostring(err), vim.log.levels.ERROR)
         return
     end
+
     core().render()
 end
 
@@ -118,10 +119,11 @@ function M.delete_()
     if not node then return end
     if fn.confirm("Delete "..node.name.."?", "&Yes\n&No") ~= 1 then return end
     if node.is_dir then fn.delete(node.path, "rf") else uv.fs_unlink(node.path) end
+
     core().render()
 end
 
-function M.copy_()
+function M.copy_(cut)
     local node = get_node()
     if node then state.clipboard = { path=node.path, cut=cut } end
 end
@@ -135,7 +137,7 @@ function M.paste_()
     local rel_target = vim.fn.fnamemodify(target_base, ":.")
     rel_target = rel_target:gsub("\\", "/")
 
-    local input = fn.input("Paste to (relative to root): ", rel_target .. "/")
+    local input = fn.input("Paste to: ", rel_target .. "/")
     if input == "" then return end
 
     -- Absolute path
@@ -166,6 +168,7 @@ function M.paste_()
     else
         fs.copy_recursive(state.clipboard.path, target)
     end
+
 end
 
 return M

@@ -47,8 +47,8 @@ function M.copy_recursive(src, dest)
         f:close()
     elseif stat.type == "directory" then
         fn.mkdir(dest, "p")
-        for _, item in ipairs(scandir(src)) do
-            copy_recursive(src .. "/" .. item.name, dest .. "/" .. item.name)
+        for _, item in ipairs(M.scandir(src)) do
+            M.copy_recursive(src .. "/" .. item.name, dest .. "/" .. item.name)
         end
     end
 end
