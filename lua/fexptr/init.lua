@@ -1,24 +1,17 @@
-local config = require("fexptr.config")
+-- lua/fexptr/init.lua
 local core = require("fexptr.core")
-local did_setup = false
 
+local did_setup = false
 local M = {}
 
 function M.setup(opts)
-    if did_setup then
-        return
-    end
+    if did_setup then return end
     did_setup = true
+    require("fexptr.config").setup(opts)
+end
 
-    -- apply config
-    config.setup(opts)
-
-    -- create commad ONLY after setup
-    vim.api.nvim_create_user_command("Fexptr", function()
-        core.toggle()
-    end, {
-    desc = "Toggle Fexptr file explorer",
-})
+function M.toggle()
+    require("fexptr.core").toggle()
 end
 
 return M

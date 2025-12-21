@@ -1,52 +1,50 @@
 -- lua/fexptr/tree.lua
-local uv = vim.loop
+local fs = require("fexptr.fs")
 local state = require("fexptr.state")
-local config = require("fexptr.config")
 
 local M = {}
 
-function M.scandir(path)
-    local handle = uv.fs_scandir(path)
-    if not handle then return {} end
-
-    local items = {}
-    while true do
-        local name, t = uv.fs_scandir_next(handle)
-        if not name then break end
-
-        if not config.options.filters.dotfiles and name:sub(1,1) == "." then
-            goto continue
-        end
-
-        table.insert(items, { name = name, type = t })
-        ::continue::
-    end
-
-    table.sort(items, function(a,b)
-        if a.type == b.type then return a.name < b.name end
-        return a.type == "directory"
-    end)
-
-    return items
-end
-
+---@param path string
+---@param depth number
+---@return ExplorerNode[]
 function M.build(path, depth)
     depth = depth or 0
     local nodes = {}
 
-    for _, item in ipairs(M.scandir(path)) do
+    local ok, items = pcall(fs.scandir, path)
+    if not ok or not items then return nodes end
+
+    for _, item in ipairs(items) do
         local full = path .. "/" .. item.name
-        local node = {
-            name = item.name,
-            path = full,
-            depth = depth,
-            is_dir = item.type == "directory",
-        }
 
-        table.insert(nodes, node)
+        if item.type == "directory" then
+            local current = full
+            local names = { item.name }
 
-        if node.is_dir and state.expanded[full] then
-            vim.list_extend(nodes, M.build(full, depth + 1))
+            while true do
+                local children = fs.scandir(current)
+                if #children ~= 1 or children[1].type ~= "directory" then break end
+                current = current .. "/" .. children[1].name
+                names[#names+1] = children[1].name
+            end
+
+            nodes[#nodes+1] = {
+                name = table.concat(names, "/"),
+                path = current,
+                depth = depth,
+                is_dir = true,
+            }
+
+            if state.expanded[current] then
+                vim.list_extend(nodes, M.build(current, depth + 1))
+            end
+        else
+            nodes[#nodes+1] = {
+                name = item.name,
+                path = full,
+                depth = depth,
+                is_dir = false,
+            }
         end
     end
 

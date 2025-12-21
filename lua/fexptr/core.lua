@@ -1,164 +1,73 @@
--- lua/fexptr/core.lua
+-- lua/fextr/core.lua
+
 local api = vim.api
 local fn = vim.fn
 
+local config = require("fexptr.config").values
 local state = require("fexptr.state")
-local tree  = require("fexptr.tree")
-local ui    = require("fexptr.ui")
-local config = require("fexptr.config")
+local tree = require("fexptr.tree")
+local actions = require("fexptr.actions")
 
 local M = {}
 
-----------------------------------------------------------------
--- Helpers
-----------------------------------------------------------------
-local function buf_map(buf, lhs, rhs)
-    api.nvim_buf_set_keymap(buf, "n", lhs, "", {
-        callback = rhs,
-        noremap = true,
-        silent = true,
-    })
-end
-
-----------------------------------------------------------------
--- Buffer + window setup
-----------------------------------------------------------------
-local function setup_buffer()
-    api.nvim_buf_set_option(state.buf, "buftype", "nofile")
-    api.nvim_buf_set_option(state.buf, "bufhidden", "wipe")
-    api.nvim_buf_set_option(state.buf, "swapfile", false)
-    api.nvim_buf_set_option(state.buf, "modifiable", false)
-    api.nvim_buf_set_option(state.buf, "filetype", "fexptr")
-end
-
-----------------------------------------------------------------
--- Mappings
-----------------------------------------------------------------
-function M.apply_mappings()
-    local actions = require("fexptr.actions")
-    local m = config.options.mappings
-
-    buf_map(state.buf, m.open,   actions.open)
-    buf_map(state.buf, m.rename, actions.rename)
-    buf_map(state.buf, m.delete, actions.delete)
-    buf_map(state.buf, m.copy,   actions.copy)
-    buf_map(state.buf, m.cut,    actions.cut)
-    buf_map(state.buf, m.paste,  actions.paste)
-
-    buf_map(state.buf, m.quit, function()
-        if state.win and api.nvim_win_is_valid(state.win) then
-            api.nvim_win_close(state.win, true)
-        end
-    end)
-end
-
-----------------------------------------------------------------
--- Render
-----------------------------------------------------------------
 function M.render()
+    if not state.buf then return end
+
+    state.cursor = api.nvim_win_get_cursor(state.win)
     state.tree = tree.build(state.root)
 
-    local lines = { ui.root_label(state.root) }
+    local lines = {"~ " .. fn.fnamemodify(state.root, ":t"):upper()}
 
     for _, node in ipairs(state.tree) do
-        lines[#lines+1] = ui.render_node(node)
+        local indent = string.rep("  ", node.depth)
+        local icon = node.is_dir
+            and (state.expanded[node.path] and config.icons.folder_open or config.icons.folder_closed)
+            or config.icons.file
+
+        lines[#lines+1] = indent .. icon .. " " .. node.name
     end
 
     api.nvim_buf_set_option(state.buf, "modifiable", true)
     api.nvim_buf_set_lines(state.buf, 0, -1, false, lines)
     api.nvim_buf_set_option(state.buf, "modifiable", false)
-end
 
-----------------------------------------------------------------
--- Cursor → node
-----------------------------------------------------------------
-function M.get_node()
-    if not state.flat then return nil end
-    local line = api.nvim_win_get_cursor(0)[1]
-    return state.flat[line]
-end
-
-----------------------------------------------------------------
--- Open split window
-----------------------------------------------------------------
--- function M.open_split()
---     vim.cmd("vsplit")
--- 
---     state.win = api.nvim_get_current_win()
---     state.buf = api.nvim_create_buf(false, true)
---     api.nvim_win_set_buf(state.win, state.buf)
--- 
---     setup_buffer()
---     M.render()
---     M.apply_mappings()
--- end
-
-----------------------------------------------------------------
--- Open floating window
-----------------------------------------------------------------
--- function M.open_float()
---     local width  = math.floor(vim.o.columns * 0.6)
---     local height = math.floor(vim.o.lines * 0.6)
--- 
---     state.buf = api.nvim_create_buf(false, true)
--- 
---     state.win = api.nvim_open_win(state.buf, true, {
---         relative = "editor",
---         width = width,
---         height = height,
---         row = math.floor((vim.o.lines - height) / 2),
---         col = math.floor((vim.o.columns - width) / 2),
---         style = "minimal",
---         border = "rounded",
---     })
--- 
---     setup_buffer()
---     M.render()
---     M.apply_mappings()
--- end
-
-----------------------------------------------------------------
--- Public entry
-----------------------------------------------------------------
--- function M.open()
---     if config.options.side == "float" then
---         M.open_float()
---     else
---         M.open_split()
---     end
--- end
-
-function M.open()
-    if state.win and api.nvim_win_is_valid(state.win) then
-        return
-    end
-
-    state.buf = api.nvim_create_buf(false, true)
-
-    local opts = {
-        relative = "editor",
-        width = config.options.width,
-        height = vim.o.lines - 2,
-        row = 1,
-        col = config.options.side == "left" and 0 or (vim.o.columns - config.options.width),
-        style = "minimal",
-    }
-
-    state.win = api.nvim_open_win(state.buf, false, opts)
-    api.nvim_buf_set_option(state.buf, "bufhidden", "wipe")
-    api.nvim_buf_set_option(state.buf, "modifiable", true)
-
-    M.render()
+    pcall(api.nvim_win_set_cursor, state.win, state.cursor)
 end
 
 function M.toggle()
     if state.win and api.nvim_win_is_valid(state.win) then
         api.nvim_win_close(state.win, true)
-        state.win = nil
-        state.buf = nil
-    else
-        M.open()
+        state.win, state.buf = nil, nil
+        return
     end
+
+    state.buf = api.nvim_create_buf(false, true)
+    vim.bo[state.buf].buftype = "nofile"
+    vim.bo[state.buf].bufhidden = "wipe"
+    vim.bo[state.buf].swapfile = false
+
+    vim.cmd("topleft " .. config.width .. "vsplit")
+    state.win = api.nvim_get_current_win()
+    api.nvim_win_set_buf(state.win, state.buf)
+    vim.wo[state.win].number = false
+    vim.wo[state.win].relativenumber = false
+    vim.wo[state.win].signcolumn = "no"
+
+    local map = function(lhs, rhs)
+        vim.keymap.set("n", lhs, rhs, { buffer = state.buf, silent = true })
+    end
+
+    map("<CR>", actions.open)
+    map("o", actions.open)
+    map("a", actions.create_)
+    map("r", actions.rename_)
+    map("d", actions.delete_)
+    map("y", function() actions.copy_(false) end)
+    map("x", function() actions.copy_(true) end)
+    map("p", actions.paste_)
+    map("q", M.toggle)
+
+    M.render()
 end
 
 return M
