@@ -3,7 +3,7 @@
 local api = vim.api
 local fn = vim.fn
 
-local config = require("fexptr.config").values
+local config = require("fexptr.config")
 local state = require("fexptr.state")
 local tree = require("fexptr.tree")
 local actions = require("fexptr.actions")
@@ -21,8 +21,8 @@ function M.render()
     for _, node in ipairs(state.tree) do
         local indent = string.rep("  ", node.depth)
         local icon = node.is_dir
-            and (state.expanded[node.path] and config.icons.folder_open or config.icons.folder_closed)
-            or config.icons.file
+            and (state.expanded[node.path] and config.values.icons.folder_open or config.values.icons.folder_closed)
+            or config.values.icons.file
 
         lines[#lines+1] = indent .. icon .. " " .. node.name
     end
@@ -46,7 +46,7 @@ function M.toggle()
     vim.bo[state.buf].bufhidden = "wipe"
     vim.bo[state.buf].swapfile = false
 
-    vim.cmd("topleft " .. config.width .. "vsplit")
+    vim.cmd("topleft " .. config.values.width .. "vsplit")
     state.win = api.nvim_get_current_win()
     api.nvim_win_set_buf(state.win, state.buf)
     vim.wo[state.win].number = false
