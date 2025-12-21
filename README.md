@@ -2,7 +2,8 @@
 
 > **A minimal, native Neovim file explorer written in pure Lua**
 
-`fexptr.nvim` is a lightweight, dependency-free file explorer built on **Neovim's native APIs**
+fexptr.nvim is a lightweight, dependency-free file explorer built on Neovim’s native APIs.
+It is designed to be simple, understandable, and hackable, while still providing the core features expected from a modern file explorer.
 
 ---
 ### ✨ Features
@@ -43,26 +44,28 @@ or if you prefer manual keymaps:
 {
     "dghuuloc/fexptr.nvim",
     lazy = false,
+    config = function()
+        require("fexptr").setup()
+    end,
 }
 ```
 
 Then in your `init.lua`
 
 ```lua
-require("fexptr").setup()
 vim.keymap.set("n", "<leader>e", "<cmd>FexptrToggle<CR>", { silent = true })
 ```
 
 #### 🔹 Native Neovim (packpath)
 
-Linux/macOS
+* Linux/macOS
 
 ```bash
 git clone https://github.com/dghuuloc/fexptr.nvim.git \
   $HOME/.local/share/nvim/site/pack/plugins/start/fexptr.nvim
 ```
 
-On Windows (PowerShell)
+* On Windows (PowerShell)
 ```powershell
 git clone https://github.com/dghuuloc/fexptr.nvim.git `
   $env:LOCALAPPDATA\nvim-data\site\pack\plugins\start\fexptr.nvim
@@ -72,18 +75,18 @@ git clone https://github.com/dghuuloc/fexptr.nvim.git `
 Restart Neovim after installation
 
 ### 🚀 Usage
-**Toggle the explorer
+**Toggle the explorer**
 
 ```vim
 :FexptrToggle
 ```
 
 ### ⚙️ Configuration
-Call `setup()` **once**, typically in your `init.lua`:
+Call `setup()` **once** during startup:
 
 ```lua
 require("fexptr").setup({
-    width = 40,
+    width = 35,
     show_hidden = true,
     icons = {
         folder_closed = "",
@@ -106,7 +109,7 @@ require("fexptr").setup({
 }
 ```
 
-### Default Keymaps (buffer-local)
+### Default Keymaps
 - `<CR>` / `o` – open
 - `a` – create
 - `r` – rename
