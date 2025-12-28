@@ -35,12 +35,28 @@ function M.render()
 end
 
 function M.toggle()
+
+    -- CLOSE
+    -- if state.win and api.nvim_win_is_valid(state.win) then
+    --     api.nvim_win_close(state.win, true)
+    --     state.win, state.buf = nil, nil
+    --     return
+    -- end
     if state.win and api.nvim_win_is_valid(state.win) then
-        api.nvim_win_close(state.win, true)
+        local wins = api.nvim_tabpage_list_wins(0)
+
+        if #wins == 1 then
+            -- last window -> replace buffer instead of closing window
+            api.nvim_set_current_buf(api.nvim_create_buf(true, false))
+        else
+            api.nvim_win_close(state.win, true)
+        end
+
         state.win, state.buf = nil, nil
         return
     end
 
+    -- OPEN
     state.buf = api.nvim_create_buf(false, true)
     vim.bo[state.buf].buftype = "nofile"
     vim.bo[state.buf].bufhidden = "wipe"
@@ -49,6 +65,7 @@ function M.toggle()
     vim.cmd("topleft " .. config.values.width .. "vsplit")
     state.win = api.nvim_get_current_win()
     api.nvim_win_set_buf(state.win, state.buf)
+
     vim.wo[state.win].number = false
     vim.wo[state.win].relativenumber = false
     vim.wo[state.win].signcolumn = "no"
