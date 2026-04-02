@@ -1,78 +1,131 @@
-*fexptr.txt*   Native file explorer for Neovim
+*fexptr.txt*   Feature-rich native file explorer for Neovim
 
 ==============================================================================
-FEXPTR                                                     *fexptr*
+FEXPTR                                                             *fexptr*
 
 A fast, native file explorer written in pure Lua.
+Inspired by nvim-tree and oil.nvim.  Zero dependencies.
 
-------------------------------------------------------------------------------
+==============================================================================
 COMMANDS                                                   *fexptr-commands*
 
 :FexptrToggle                                              *:FexptrToggle*
-    Toggle the file explorer window.
+    Toggle the file explorer window open or closed.
 
-------------------------------------------------------------------------------
-KEYMAPS                                                   *fexptr-keymaps*
+:FexptrOpen                                                *:FexptrOpen*
+    Open the explorer (no-op if already open).
 
-Inside the explorer buffer:
-
-<CR>, o
-    Open file or expand directory.
-
-a
-    Create file or directory.
-
-r
-    Rename file or directory.
-
-d
-    Delete file or directory.
-
-y
-    Copy file or directory.
-
-x
-    Cut (move) file or directory.
-
-p
-    Paste copied or cut item.
-
-q
+:FexptrClose                                               *:FexptrClose*
     Close the explorer.
 
-Keymaps are configurable via setup().
+:FexptrRefresh                                             *:FexptrRefresh*
+    Force a full refresh: git status, LSP diagnostics, filesystem.
 
-------------------------------------------------------------------------------
-CONFIGURATION                                            *fexptr-config*
+:FexptrFind                                                *:FexptrFind*
+    Open the explorer and immediately start a live filter prompt.
 
-Example:
+==============================================================================
+KEYMAPS                                                    *fexptr-keymaps*
 
->
-lua << EOF
+<CR>, o        Open file or expand/collapse directory.
+a              Create file or directory (trailing / = directory).
+r              Rename file or directory.
+d              Delete or trash file/directory (respects selection).
+y              Copy file/directory to clipboard.
+x              Cut (move) file/directory.
+p              Paste clipboard item(s) to target directory.
+q              Close the explorer.
+H              Toggle display of hidden (dot) files.
+C              Change explorer root to selected directory.
+-              Go up to parent directory.
+<Space>        Toggle selection on current node.
+A              Select all visible nodes / deselect all.
+Y              Copy absolute path to system clipboard (+).
+gn             Copy filename to system clipboard (+).
+s              Open with OS default application.
+f              Start live filter (fuzzy match on node names).
+<Esc>          Clear active filter.
+R              Refresh (git + diagnostics + filesystem).
+P              Preview file in adjacent window.
+
+All keymaps are configurable via setup(). Set any key to false to disable it.
+
+==============================================================================
+CONFIGURATION                                              *fexptr-config*
+
+Call setup() once during startup:
+
+>lua
 require("fexptr").setup({
-  width = 30,
-  show_hidden = false,
-  keymaps = {
-    open = { "<CR>", "o" },
-    quit = "q",
-  },
+    width       = 30,
+    show_hidden = false,
+    float = {
+        enabled = false,
+        width   = 0.5,
+        height  = 0.8,
+        border  = "rounded",
+    },
+    preview = {
+        enabled = false,       -- auto-preview on CursorMoved
+    },
+    git = {
+        enabled        = true,
+        show_untracked = true,
+    },
+    diagnostics = {
+        enabled = true,
+    },
+    trash = {
+        enabled = true,
+        cmd     = nil,         -- e.g. { "trash-put" }
+    },
+    icons = { ... },
+    keymaps = { ... },
 })
-EOF
+<
 
-------------------------------------------------------------------------------
-ARCHITECTURE                                             *fexptr-architecture*
+==============================================================================
+HIGHLIGHTS                                                 *fexptr-highlights*
+
+FexptrHeader          Title     Explorer header line.
+FexptrDirIcon         Directory Folder icon.
+FexptrDirName         Directory Directory name.
+FexptrFileIcon        Normal    File icon.
+FexptrFileName        Normal    File name.
+FexptrSelected        Visual    Selected node background.
+FexptrGitModified     Changed   Git: modified.
+FexptrGitAdded        Added     Git: added / staged.
+FexptrGitDeleted      Removed   Git: deleted.
+FexptrGitRenamed      Changed   Git: renamed.
+FexptrGitUntracked    Added     Git: untracked.
+FexptrGitUnmerged     DiagErr   Git: merge conflict.
+FexptrGitIgnored      Comment   Git: ignored.
+FexptrDiagError       DiagErr   Diagnostic error.
+FexptrDiagWarn        DiagWarn  Diagnostic warning.
+FexptrDiagHint        DiagHint  Diagnostic hint.
+FexptrDiagInfo        DiagInfo  Diagnostic info.
+
+==============================================================================
+ARCHITECTURE                                               *fexptr-architecture*
 
 lua/fexptr/
-  init.lua      Public API
-  config.lua    Configuration
-  state.lua     Runtime state
-  fs.lua        Filesystem helpers
-  tree.lua      Tree builder
-  core.lua      UI and rendering
-  actions.lua   User actions
+  init.lua          Public API
+  config.lua        Configuration and defaults
+  state.lua         Shared runtime state
+  highlight.lua     Highlight group definitions
+  git.lua           Async git status via vim.loop.spawn
+  diagnostics.lua   vim.diagnostic aggregation
+  fs.lua            Filesystem helpers (scandir, copy, trash)
+  tree.lua          Flat node list builder
+  preview.lua       File preview in adjacent window
+  core.lua          Window lifecycle, render(), fs_event watcher
+  actions/
+    init.lua        Re-exports all actions
+    nav.lua         Navigation actions (open, cd, filter, …)
+    fs.lua          Mutation actions (create, rename, delete, …)
 
-------------------------------------------------------------------------------
-AUTHOR                                                    *fexptr-author*
+==============================================================================
+AUTHOR                                                     *fexptr-author*
 
 Maintained by dghuuloc
 License: MIT
