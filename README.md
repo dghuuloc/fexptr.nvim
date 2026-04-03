@@ -125,8 +125,8 @@ require("fexptr").setup({
     },
 
     icons = {
-        folder_open = "",
-        folder_closed = "",
+        folder_open = "",          -- ""
+        folder_closed = "",        -- ""
         file = "󰈙",
     },
 
