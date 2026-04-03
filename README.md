@@ -119,6 +119,17 @@ require("fexptr").setup({
     width       = 30,          -- sidebar width in columns
     show_hidden = false,       -- show dotfiles by default
 
+    folder_indicators = {
+        open = "▾",
+        closed = "▸",
+    },
+
+    icons = {
+        folder_open = "",
+        folder_closed = "",
+        file = "󰈙",
+    },
+
     -- Optional floating window (replaces the sidebar)
     float = {
         enabled = false,

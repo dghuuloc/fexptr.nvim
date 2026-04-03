@@ -17,6 +17,13 @@ local groups = {
     -- Selection
     { "FexptrSelected",    "Visual" },
 
+    -- Indent lines and connectors
+    { "FexptrIndentLine",  "Comment" },
+    { "FexptrConnector",   "Comment" },
+
+    -- Parent entry (..)
+    { "FexptrParent",      "Special" },
+
     -- Symlink
     { "FexptrSymlink",     "Constant" },
 

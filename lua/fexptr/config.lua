@@ -4,6 +4,24 @@ local M = {}
 M.values = {
     width       = 30,
     show_hidden = false,
+    indent_lines = true,   -- draw │ ├─ └─ tree connectors
+    show_parent  = false,  -- show .. entry at top to navigate up
+
+    -- Characters used to draw the tree structure lines.
+    -- Set indent_lines = false to hide them all.
+    connectors = {
+        vertical = "│ ",  -- continuing branch (ancestor still has siblings)
+        middle   = "├─",  -- node that has siblings below it
+        last     = "└─",  -- last child at this level
+        blank    = "  ",  -- ancestor has no more siblings (gap)
+    },
+
+    -- Chevron indicators prepended before the folder icon.
+    -- Set both to "" to use only the folder icon with no chevron.
+    folder_indicators = {
+        open   = "▾",   -- shown before folder_open icon
+        closed = "▸",   -- shown before folder_closed icon
+    },
 
     -- Floating window mode
     float = {

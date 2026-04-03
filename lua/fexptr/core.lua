@@ -1,12 +1,4 @@
 -- lua/fexptr/core.lua
---
--- Owns the explorer window + buffer lifecycle.
--- render()  rebuilds lines, applies all highlight groups, and adds
---           virtual-text for git status and LSP diagnostics.
--- toggle()  opens or closes the explorer, supporting both sidebar and
---           floating window modes.
--- start_watcher() / stop_watcher() manage the libuv fs_event watcher
---           that auto-refreshes on external filesystem changes.
 
 local api = vim.api
 local fn  = vim.fn
@@ -20,41 +12,121 @@ local M  = {}
 local NS = api.nvim_create_namespace("fexptr_hl")
 
 -- --------------------------------------------------------------------------
+-- Indent / connector builder
+-- --------------------------------------------------------------------------
+local VERT   = "│ "   -- 3 + 1 = 4 bytes
+local BLANK  = "  "   -- 2 bytes
+local BRANCH = "├─ "  -- 3 + 3 + 1 = 7 bytes
+local CORNER = "└─ "  -- 3 + 3 + 1 = 7 bytes
+
+local VERT_B   = #VERT
+local BLANK_B  = #BLANK
+local BRANCH_B = #BRANCH
+local CORNER_B = #CORNER
+
+local function make_indent(node, cfg)
+    if not cfg.indent_lines or not node.last_at then
+        local s = string.rep("  ", node.depth)
+        return s, #s
+    end
+
+    -- No connector for depth-0 items — they sit flush at the left margin
+    -- just like nvim-tree's top-level entries.
+    if node.depth == 0 then
+        return "", 0
+    end
+
+    local parts      = {}
+    local byte_total = 0
+
+    -- Ancestor vertical lines (depths 0 … depth-2)
+    for d = 0, node.depth - 2 do
+        if node.last_at[d] then
+            parts[#parts + 1] = BLANK
+            byte_total = byte_total + BLANK_B
+        else
+            parts[#parts + 1] = VERT
+            byte_total = byte_total + VERT_B
+        end
+    end
+
+    -- Own connector (depth-1 level, based on this node's is_last)
+    local is_last = node.last_at[node.depth]
+    if is_last then
+        parts[#parts + 1] = CORNER
+        byte_total = byte_total + CORNER_B
+    else
+        parts[#parts + 1] = BRANCH
+        byte_total = byte_total + BRANCH_B
+    end
+
+    return table.concat(parts), byte_total
+end
+
+-- --------------------------------------------------------------------------
 -- Render
 -- --------------------------------------------------------------------------
 
 function M.render()
     if not (state.buf and api.nvim_buf_is_valid(state.buf)) then return end
 
-    -- Preserve cursor
     state.cursor = api.nvim_win_get_cursor(state.win)
 
-    -- Rebuild tree
-    state.tree = tree_m.build(state.root)
+    -- Build tree
+    local raw_tree = tree_m.build(state.root)
 
-    local cfg  = config.values
-    local lines = {}
+    -- Prepend ".." entry when show_parent is on and we're not at fs root
+    local cfg = config.values
+    state.tree = {}
+    local parent_path = fn.fnamemodify(state.root, ":h")
+    if cfg.show_parent and parent_path ~= state.root then
+        state.tree[1] = {
+            name      = "..",
+            path      = parent_path,
+            depth     = 0,
+            is_dir    = true,
+            is_parent = true,
+            last_at   = nil,
+        }
+    end
+    for _, n in ipairs(raw_tree) do
+        state.tree[#state.tree + 1] = n
+    end
 
-    -- Header
+    -- Header line
     local header = "  " .. fn.fnamemodify(state.root, ":~"):upper()
     if state.filter then
         header = header .. "  [/" .. state.filter .. "/]"
     end
-    lines[1] = header
+    local lines = { header }
 
-    -- Build lines and cache icon on each node
+    -- ── Build lines + collect per-node render data ─────────────────────
+    -- We store indent byte lengths so the highlight pass below can slice
+    -- correctly without recomputing.
+    local indent_bytes_arr = {}
+
     for _, node in ipairs(state.tree) do
-        local indent = string.rep("  ", node.depth)
         local icon
-        if node.is_dir then
+        if node.is_parent then
+            icon = " "   -- up-arrow for ".."
+        elseif node.is_dir then
             icon = state.expanded[node.path]
                 and cfg.icons.folder_open
                 or  cfg.icons.folder_closed
+            local expanded = state.expanded[node.path]
+            local indicators = cfg.folder_indicators or {}
+            local indicator = expanded and (indicators.open or "") or (indicators.closed or "")
+            local folder_icon = expanded and (cfg.icons.folder_open or "") or (cfg.icons.folder_closed or "")
+            icon = indicator .. folder_icon
         else
             icon = cfg.icons.file
         end
-        node.icon   = icon
-        lines[#lines + 1] = indent .. icon .. " " .. node.name
+        node.icon = icon
+
+        local indent_str, indent_b = make_indent(node, cfg)
+        indent_bytes_arr[#indent_bytes_arr + 1] = indent_b
+
+        lines[#lines + 1] = indent_str .. icon .. " " .. node.name
     end
 
     -- Write buffer
@@ -65,66 +137,71 @@ function M.render()
     -- ── Highlights ──────────────────────────────────────────────────────
     api.nvim_buf_clear_namespace(state.buf, NS, 0, -1)
 
-    -- Header
+    -- Header (line 0)
     api.nvim_buf_add_highlight(state.buf, NS, "FexptrHeader", 0, 0, -1)
 
     local diag_mod = require("fexptr.diagnostics")
 
     for i, node in ipairs(state.tree) do
-        local line_nr = i   -- 0-indexed; header is line 0, nodes start at 1
+        local line_nr    = i                          -- 0-indexed; header=0
+        local indent_b   = indent_bytes_arr[i]
+        local icon_b     = #node.icon
+        local name_start = indent_b + icon_b + 1     -- +1 = space after icon
 
-        -- Selected row background (drawn first so icon/name colours win)
+        -- Selected background
         if state.selection[node.path] then
             api.nvim_buf_add_highlight(state.buf, NS, "FexptrSelected", line_nr, 0, -1)
         end
 
-        local indent_bytes = node.depth * 2           -- each level = 2 spaces
-        local icon_bytes   = #node.icon               -- byte length of the icon char
-        local name_start   = indent_bytes + icon_bytes + 1   -- +1 = space after icon
+        -- ".." parent entry
+        if node.is_parent then
+            api.nvim_buf_add_highlight(state.buf, NS, "FexptrParent", line_nr, 0, -1)
+            goto continue
+        end
+
+        -- Indent lines (the │ ├─ └─ prefix region)
+        if cfg.indent_lines and indent_b > 0 then
+            api.nvim_buf_add_highlight(state.buf, NS, "FexptrIndentLine", line_nr, 0, indent_b)
+        end
 
         -- Icon
         local icon_hl = node.is_dir and "FexptrDirIcon" or "FexptrFileIcon"
-        api.nvim_buf_add_highlight(state.buf, NS, icon_hl, line_nr, indent_bytes, name_start)
+        api.nvim_buf_add_highlight(state.buf, NS, icon_hl, line_nr, indent_b, name_start)
 
-        -- Name colour: diagnostics override the normal dir/file colour
-        local diag     = cfg.diagnostics.enabled and diag_mod.get(node.path, node.is_dir)
+        -- Name: diagnostics colour override → dir/file fallback
+        local diag = cfg.diagnostics.enabled and diag_mod.get(node.path, node.is_dir)
         local name_hl
-        if diag == "error" then
-            name_hl = "FexptrDiagError"
-        elseif diag == "warn" then
-            name_hl = "FexptrDiagWarn"
-        elseif node.is_dir then
-            name_hl = "FexptrDirName"
-        else
-            name_hl = "FexptrFileName"
+        if     diag == "error" then name_hl = "FexptrDiagError"
+        elseif diag == "warn"  then name_hl = "FexptrDiagWarn"
+        elseif node.is_dir     then name_hl = "FexptrDirName"
+        else                        name_hl = "FexptrFileName"
         end
         api.nvim_buf_add_highlight(state.buf, NS, name_hl, line_nr, name_start, -1)
 
-        -- Virtual text: diagnostics icon  +  git status icon  (eol)
+        -- Virtual text: diagnostic icon + git status icon (EOL)
         local virt = {}
-
         if diag and cfg.diagnostics.enabled then
             local dico = cfg.icons.diagnostics[diag] or "!"
             local dhl  = hl.diag_hl[diag] or "Comment"
-            table.insert(virt, { " " .. dico, dhl })
+            virt[#virt + 1] = { " " .. dico, dhl }
         end
-
         local git = cfg.git.enabled and state.git_status[node.path]
         if git then
             local gico = (cfg.icons.git_status or {})[git] or git
             local ghl  = hl.git_hl[git] or "Comment"
-            table.insert(virt, { " " .. gico, ghl })
+            virt[#virt + 1] = { " " .. gico, ghl }
         end
-
         if #virt > 0 then
             api.nvim_buf_set_extmark(state.buf, NS, line_nr, 0, {
                 virt_text     = virt,
                 virt_text_pos = "eol",
             })
         end
+
+        ::continue::
     end
 
-    -- Statusline for the explorer window
+    -- Statusline
     if state.win and api.nvim_win_is_valid(state.win) then
         local sl = " " .. fn.fnamemodify(state.root, ":~")
         if state.filter then sl = sl .. "  /" .. state.filter .. "/" end
@@ -173,14 +250,15 @@ local function setup_keymaps(buf)
     map(km.refresh,       a_nav.refresh)
     map(km.preview,       a_nav.preview)
 
-    -- Auto-preview on cursor movement (when preview.enabled = true)
     if config.values.preview.enabled then
         api.nvim_create_autocmd("CursorMoved", {
             buffer   = buf,
             callback = function()
-                local row = api.nvim_win_get_cursor(0)[1]
+                local row  = api.nvim_win_get_cursor(0)[1]
                 local node = state.tree[row - 1]
-                if node then require("fexptr.preview").open(node) end
+                if node and not node.is_parent then
+                    require("fexptr.preview").open(node)
+                end
             end,
         })
     end
@@ -191,12 +269,11 @@ end
 -- --------------------------------------------------------------------------
 
 function M.toggle()
-    -- ── CLOSE ───────────────────────────────────────────────────────────
+    -- CLOSE
     if state.win and api.nvim_win_is_valid(state.win) then
         M.stop_watcher()
         local wins = api.nvim_tabpage_list_wins(0)
         if #wins == 1 then
-            -- Last window: replace buffer instead of quitting Neovim
             api.nvim_set_current_buf(api.nvim_create_buf(true, false))
         else
             api.nvim_win_close(state.win, true)
@@ -206,7 +283,7 @@ function M.toggle()
         return
     end
 
-    -- ── OPEN ────────────────────────────────────────────────────────────
+    -- OPEN
     local buf = api.nvim_create_buf(false, true)
     vim.bo[buf].buftype   = "nofile"
     vim.bo[buf].bufhidden = "wipe"
@@ -216,7 +293,6 @@ function M.toggle()
     local cfg = config.values
 
     if cfg.float.enabled then
-        -- Floating window
         local width  = math.floor(vim.o.columns * cfg.float.width)
         local height = math.floor(vim.o.lines   * cfg.float.height)
         local row    = math.floor((vim.o.lines   - height) / 2)
@@ -234,7 +310,6 @@ function M.toggle()
             title_pos = "center",
         })
     else
-        -- Sidebar
         vim.cmd("topleft " .. cfg.width .. "vsplit")
         state.win = api.nvim_get_current_win()
         api.nvim_win_set_buf(state.win, buf)
@@ -283,13 +358,26 @@ local _refresh_timer = nil
 ---Debounced refresh: waits 400 ms after the last fs event before re-rendering.
 local function schedule_refresh()
     if _refresh_timer then
-        _refresh_timer:stop()
-        _refresh_timer:close()
-    end
-    _refresh_timer = vim.loop.new_timer()
-    _refresh_timer:start(400, 0, vim.schedule_wrap(function()
-        _refresh_timer:close()
+        pcall(function()
+            _refresh_timer:stop()
+            _refresh_timer:close()
+        end)
         _refresh_timer = nil
+    end
+
+    local timer = vim.loop.new_timer()
+    if not timer then return end
+    _refresh_timer = timer
+
+    timer:start(400, 0, vim.schedule_wrap(function()
+        pcall(function()
+            timer:stop()
+            timer:close()
+        end)
+        if _refresh_timer == timer then
+            _refresh_timer = nil
+        end
+
         if state.buf and api.nvim_buf_is_valid(state.buf) then
             require("fexptr.git").refresh(function()
                 M.render()

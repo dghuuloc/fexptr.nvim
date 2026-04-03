@@ -54,6 +54,12 @@ function M.open()
     local node = M.get_node()
     if not node then return end
 
+    -- ".." entry → go up to parent directory
+    if node.is_parent then
+        M.parent()
+        return
+    end
+
     if node.is_dir then
         state.expanded[node.path] = not state.expanded[node.path]
         vim.g.fexptr_expanded = state.expanded
