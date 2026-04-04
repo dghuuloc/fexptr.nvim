@@ -10,6 +10,7 @@ local hl      = require("fexptr.highlight")
 
 local M  = {}
 local NS = api.nvim_create_namespace("fexptr_hl")
+local _render_scheduled = false
 
 -- --------------------------------------------------------------------------
 -- Indent / connector builder
