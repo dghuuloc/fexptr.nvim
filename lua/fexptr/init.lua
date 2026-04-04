@@ -17,7 +17,7 @@ function M.setup(opts)
             local state = require("fexptr.state")
             if state.buf and vim.api.nvim_buf_is_valid(state.buf) then
                 require("fexptr.diagnostics").refresh()
-                require("fexptr.core").render()
+                require("fexptr.core").render_deferred()
             end
         end,
     })
@@ -44,7 +44,7 @@ end
 function M.refresh()
     require("fexptr.git").refresh(function()
         require("fexptr.diagnostics").refresh()
-        require("fexptr.core").render_deferred()
+        require("fexptr.core").render()
     end)
 end
 
