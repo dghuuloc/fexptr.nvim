@@ -212,6 +212,20 @@ function M.render()
     pcall(api.nvim_win_set_cursor, state.win, state.cursor)
 end
 
+function M.render_deferred()
+    if _render_scheduled then return end
+    _render_scheduled = true
+    vim.schedule(function()
+        _render_scheduled = false
+        if not (state.buf and api.nvim_buf_is_valid(state.buf)) then return end
+        if not (state.win and api.nvim_win_is_valid(state.win)) then return end
+        local ok, err = pcall(M.render)
+        if not ok then
+            vim.notify("fexptr render failed: " .. tostring(err), vim.log.levels.WARN)
+        end
+    end)
+end
+
 -- --------------------------------------------------------------------------
 -- Keymaps
 -- --------------------------------------------------------------------------
