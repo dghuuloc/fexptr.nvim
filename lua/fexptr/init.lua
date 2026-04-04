@@ -44,7 +44,7 @@ end
 function M.refresh()
     require("fexptr.git").refresh(function()
         require("fexptr.diagnostics").refresh()
-        require("fexptr.core").render()
+        require("fexptr.core").render_deferred()
     end)
 end
 
